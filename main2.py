@@ -447,7 +447,7 @@ class DroneMission:
                     intermediate_points = self.interpolate_waypoints(current_wp, next_wp, num_intermediate)
                     
                     self.goto_position(current_wp[0], current_wp[1], 8, speed=4)
-                    
+                    #ehehe
                     for j, (lat, lon) in enumerate(intermediate_points, 1):
                         print(f"Processing intermediate point {j}/{num_intermediate}...")
                         self.goto_position(lat, lon, 8, speed=4)
