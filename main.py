@@ -350,16 +350,16 @@ class DroneMission:
         self.vehicle = None
         self.connection_string = connection_string
         self.waypoints = [
-            (35.3627281, 149.1646507),
-            (35.3627954, 149.1646324),
-            (35.3628388, 149.1647028),
-            (35.3627622, 149.1647211),
-            (35.3629098, 149.1646742),
-            (35.3630061, 149.1647151),
-            (35.3630259, 149.1646675),
-            (35.3629568, 149.1646249),
-            (35.3628734, 149.1646346),
-            (35.3627640, 149.1646507)
+            (-35.3631743, 149.1653040),
+            (-35.3631426, 149.1652115),
+            (-35.3631836, 149.1651133),
+            (-35.3632243, 149.1651129),
+            (-35.3632243, 149.1651129),
+            (-35.3633589, 149.1652997),
+            (-35.3633928, 149.1652507),
+            (-35.3633698, 149.1651460),
+            (-35.3633168, 149.1651220),
+            (-35.3632368, 149.1653037)
         ]
         
     def connect_vehicle(self):
@@ -407,7 +407,7 @@ class DroneMission:
             interpolated.append((new_lat, new_lon))
         return interpolated
 
-    def goto_position(self, target_lat, target_lon, target_altitude, speed=2, distance_tolerance=1):
+    def goto_position(self, target_lat, target_lon, target_altitude, speed=4, distance_tolerance=1):
         print(f"Going to target position: ({target_lat}, {target_lon}, {target_altitude}m)")
         target_location = LocationGlobalRelative(target_lat, target_lon, target_altitude)
         self.vehicle.simple_goto(target_location, groundspeed=speed)
@@ -424,7 +424,7 @@ class DroneMission:
             
     def set_navigation_parameters(self):
         print("Setting navigation parameters...")
-        self.vehicle.parameters['WPNAV_SPEED'] = 200  
+        self.vehicle.parameters['WPNAV_SPEED'] = 400  
         self.vehicle.parameters['WPNAV_ACCEL'] = 50   
         self.vehicle.parameters['WPNAV_RADIUS'] = 500 
 
@@ -434,7 +434,7 @@ class DroneMission:
             
             self.set_navigation_parameters()
             
-            self.arm_and_takeoff(5)
+            self.arm_and_takeoff(8)
 
             for i in range(len(self.waypoints)):
                 print(f"\nProcessing waypoint {i+1}/{len(self.waypoints)}...")
@@ -446,13 +446,13 @@ class DroneMission:
                     num_intermediate = max(1, int(distance / 2))
                     intermediate_points = self.interpolate_waypoints(current_wp, next_wp, num_intermediate)
                     
-                    self.goto_position(current_wp[0], current_wp[1], 5, speed=2)
-                    
+                    self.goto_position(current_wp[0], current_wp[1], 8, speed=4)
+                    #ehehe
                     for j, (lat, lon) in enumerate(intermediate_points, 1):
                         print(f"Processing intermediate point {j}/{num_intermediate}...")
-                        self.goto_position(lat, lon, 5, speed=2)
+                        self.goto_position(lat, lon, 8, speed=4)
                 else:
-                    self.goto_position(current_wp[0], current_wp[1], 5, speed=2)
+                    self.goto_position(current_wp[0], current_wp[1], 8, speed=4)
 
             print("Landing...")
             self.vehicle.mode = VehicleMode("LAND")
