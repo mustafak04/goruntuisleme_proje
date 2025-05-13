@@ -18,6 +18,10 @@ shape_queue = queue.Queue()
 #Dictionary for detected shapes
 detected_shapes = {}
 
+# Hexagon coordinates storage
+hexagon_coordinates = None
+mission_completed = False
+
 class CameraSubscriber:
     def __init__(self):
         if not rospy.core.is_initialized():
@@ -169,6 +173,8 @@ def initalizeKeyBinds():
     return False
 
 def process_frame(frame):
+    global hexagon_coordinates
+    
     if frame is None:
         return frame
         
@@ -320,23 +326,29 @@ def process_frame(frame):
                         cv2.putText(frame, f"Weight {shape_color}", (x, y), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
                 if edge_count == 6 and area > 300:
-                        x, y, w, h = cv2.boundingRect(approx)
-                        color = getDominantColor(x, y, w, h, clean_frame)
+                    x, y, w, h = cv2.boundingRect(approx)
+                    color = getDominantColor(x, y, w, h, clean_frame)
 
-                        if color == "Blue":
-                            cv2.drawContours(frame, [approx], -1, (0, 255, 0), 2)
-                            edge_meter = np.sqrt(((h / 2) * (h / 2) + (w / 2) * (w / 2)))
-                            print(f"Edge Meter: {edge_meter}")
+                    if color == "Blue":
+                        cv2.drawContours(frame, [approx], -1, (0, 255, 0), 2)
+                        edge_meter = np.sqrt(((h / 2) * (h / 2) + (w / 2) * (w / 2)))
+                        print(f"Edge Meter: {edge_meter}")
 
-                            calculated_ratio = w / h
-                            print(f"Calculated Ratio: {calculated_ratio}")
+                        calculated_ratio = w / h
+                        print(f"Calculated Ratio: {calculated_ratio}")
+                        
+                        ratio = h * 2 / np.sqrt(3) * 1.154 * h
+
+                        if 1.00 <= calculated_ratio <= 1.20:
+                            cv2.putText(frame, "Hexagon Target", (x, y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                            cv2.circle(frame, (int(x + w / 2), int(y + h / 2)), 5, (0, 0, 255), -1)
                             
-                            ratio = h * 2 / np.sqrt(3) * 1.154 * h
-
-                            if 1.00 <= calculated_ratio <= 1.20:
-                                cv2.putText(frame, "Hexagon Target", (x, y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                                cv2.circle(frame, (int(x + w / 2), int(y + h / 2)), 5, (0, 0, 255), -1)
-                                add_detected_shape_queue("Hexagon", "Blue", (x, y))
+                            # Hexagon tespit edildiğinde koordinatları kaydet
+                            if hexagon_coordinates is None:
+                                hexagon_coordinates = (x, y, w, h)
+                                print(f"Hexagon coordinates saved: {hexagon_coordinates}")
+                            
+                            add_detected_shape_queue("Hexagon", "Blue", (x, y))
     else:
         pass
 
@@ -355,10 +367,6 @@ class DroneMission:
             (-35.3631836, 149.1651133),
             (-35.3632243, 149.1651129),
             (-35.3632243, 149.1651129),
-            (-35.3633589, 149.1652997),
-            (-35.3633928, 149.1652507),
-            (-35.3633698, 149.1651460),
-            (-35.3633168, 149.1651220),
             (-35.3632368, 149.1653037)
         ]
         
@@ -429,6 +437,8 @@ class DroneMission:
         self.vehicle.parameters['WPNAV_RADIUS'] = 500 
 
     def execute_mission(self):
+        global mission_completed, hexagon_coordinates
+        
         try:
             self.connect_vehicle()
             
@@ -447,7 +457,7 @@ class DroneMission:
                     intermediate_points = self.interpolate_waypoints(current_wp, next_wp, num_intermediate)
                     
                     self.goto_position(current_wp[0], current_wp[1], 8, speed=4)
-                    #ehehe
+                    
                     for j, (lat, lon) in enumerate(intermediate_points, 1):
                         print(f"Processing intermediate point {j}/{num_intermediate}...")
                         self.goto_position(lat, lon, 8, speed=4)
@@ -461,6 +471,38 @@ class DroneMission:
                 print(f"Current altitude: {self.vehicle.location.global_relative_frame.alt}")
                 time.sleep(1)
             print("Landing complete!")
+            
+            # Ana görev tamamlandı olarak işaretle
+            mission_completed = True
+            
+            # Eğer hexagon tespit edilmişse, tekrar kalkış yap ve hexagonun olduğu yere git
+            if hexagon_coordinates is not None:
+                print("\nHexagon detected during mission. Preparing for second flight to hexagon location...")
+                
+                # Hexagonun GPS koordinatlarını hesapla (bu kısım gerçek uygulamada daha detaylı olmalı)
+                # Bu örnekte basitçe son waypoint'e göre offset ekliyoruz
+                last_wp = self.waypoints[-1]
+                hexagon_lat = last_wp[0] + 0.0001 * (hexagon_coordinates[0] / 100)
+                hexagon_lon = last_wp[1] + 0.0001 * (hexagon_coordinates[1] / 100)
+                
+                print(f"Calculated hexagon GPS coordinates: {hexagon_lat}, {hexagon_lon}")
+                
+                # Tekrar kalkış yap
+                print("\nArming and taking off for hexagon approach...")
+                self.arm_and_takeoff(8)
+                
+                # Hexagonun olduğu yere git
+                print("\nFlying to hexagon location...")
+                self.goto_position(hexagon_lat, hexagon_lon, 8, speed=4)
+                
+                # İniş yap
+                print("\nLanding on hexagon...")
+                self.vehicle.mode = VehicleMode("LAND")
+                
+                while self.vehicle.location.global_relative_frame.alt > 0.1:
+                    print(f"Current altitude: {self.vehicle.location.global_relative_frame.alt}")
+                    time.sleep(1)
+                print("Landing on hexagon complete!")
 
             self.vehicle.close()
 
@@ -473,6 +515,8 @@ class DroneMission:
 # ----------------------- MAIN FUNCTION -----------------------
 
 def main():
+    global mission_completed
+    
     if not rospy.core.is_initialized():
         rospy.init_node('gazebo_mission', anonymous=True)
     
